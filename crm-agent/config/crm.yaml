@@ -1,18 +1,20 @@
-provider: # hubspot | salesforce | pipedrive
-api_via: # mcp | direct
-connector_name: # e.g. "hubspot-mcp", required if api_via=mcp
+provider: hubspot
+api_via: mcp
+connector_name: HubSpot # portal accountId 45013420, confirmed reachable via mcp__HubSpot__*
 
 object_mapping:
-  contact_object: contact
-  company_object: company
-  deal_object: deal
+  contact_object: contacts
+  company_object: companies
+  deal_object: deals
 
 field_mapping:
-  email: # CRM field name
-  phone:
-  job_title:
-  company_name:
-  custom_decay_score: # optional, recommended
+  email: email
+  phone: phone
+  job_title: jobtitle
+  company_name: company
+  custom_decay_score: # not yet created in HubSpot -- add a custom Number contact
+    # property (e.g. internal name "decay_score") in Settings > Properties,
+    # then set this to that internal name.
 
 write_rules:
   preserve_history: true

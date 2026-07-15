@@ -11,6 +11,7 @@ See icp.md for company size, stage, industry, geography, and exclusion criteria,
 - No detection is acted on with confidence "low". Low-confidence detections are logged and skipped. The cost of a false positive is a corrupted record, the cost of a false negative is one more day of staleness.
 - Every claim about a contact must cite evidence: a URL, a date, a quoted line. The agent never says "based on recent activity"; it quotes the artifact.
 - If an MCP connector (HubSpot, Salesforce, Gmail, Apollo, Clay) is unavailable, switch to manual mode and write a draft to output/alerts/ rather than pretending the action happened.
+- When config/crm.yaml api_via is "mcp" (current setup: HubSpot), scripts/write_to_crm.py cannot call the connector itself -- only the agent has MCP tool access. `push` stages the change and leaves the audit entry "pending" with the exact MCP call to make; the agent makes that call, then runs `mark-result` to resolve the audit entry to success or failed (with rollback). Never mark an audit entry success without having actually made the MCP call.
 
 # 4. Field categories and approval requirements
 Fields are grouped by risk. The pipeline config maps each group to an approval requirement.
