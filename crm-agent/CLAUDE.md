@@ -1,8 +1,8 @@
 # 1. Product context
-[One paragraph on what we sell, for whom, and the specific problem we solve. Use the words a frustrated customer uses, not marketing copy. To be filled.]
+Atwoods is a membership at a work resort in the Catskills where a leadership team leaves the office to get through the strategic work it never finishes there — the planning, the hard alignment conversations, the decisions everyone keeps punting on in the weekly meeting. The alternative most companies use is a hotel conference room or a generic offsite venue, built for travelers passing through, not for a team trying to think together for two or three days straight: the rooms aren't set up for working sessions, no one is managing the schedule or the logistics, and the team ends up running the same laptop-and-Slack routine in a different building. Atwoods is built around the working session instead of the stay — accommodations, meeting space, and programming designed for the retreat itself. The buyer is whoever owns the offsite budget and logistics — Founder, CEO, COO, Chief of Staff, Head of People, Head of Operations, or an Executive Assistant, depending on company size — but that person is often not the one in the room: the users are the leadership team, employees, advisors, board members, and other invited guests actually doing the work on-site.
 
 # 2. Ideal Customer Profile
-[Pointer to icp.md, which lists company size, industry, stage, buyer role, exclusion criteria. To be filled.]
+See icp.md for company size, stage, industry, geography, and exclusion criteria, plus the decision-maker/champion/user title mapping and what counts as a champion move worth alerting on.
 
 # 3. Agent behavior rules
 - The agent proposes, the human approves. No CRM record is ever mutated without human approval per category (see config/pipeline.yaml for which fields require approval).
