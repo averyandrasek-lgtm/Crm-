@@ -1,4 +1,4 @@
-write_mode: draft # allowed: draft, live
+write_mode: live # allowed: draft, live
 
 approval_required:
   low_risk: false # written automatically with audit log
