@@ -9,8 +9,8 @@
       "description": "Slug format: firstname-lastname-companyslug, lowercase, hyphenated.",
       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
     },
-    "first_name": { "type": "string", "minLength": 1 },
-    "last_name": { "type": "string", "minLength": 1 },
+    "first_name": { "type": ["string", "null"], "minLength": 1 },
+    "last_name": { "type": ["string", "null"], "minLength": 1 },
     "email": {
       "type": ["string", "null"],
       "format": "email"
@@ -22,12 +22,12 @@
       "type": ["string", "null"],
       "format": "uri"
     },
-    "company": { "type": "string", "minLength": 1 },
+    "company": { "type": ["string", "null"], "minLength": 1 },
     "company_domain": {
       "type": ["string", "null"],
       "format": "hostname"
     },
-    "title": { "type": "string", "minLength": 1 },
+    "title": { "type": ["string", "null"], "minLength": 1 },
     "role_category": {
       "type": "string",
       "enum": ["champion", "decision_maker", "user", "influencer", "other"]

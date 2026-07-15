@@ -1,0 +1,9 @@
+# Real contact/customer data stays local-only; never pushed to git.
+state/*.jsonl
+contacts.csv
+champions.csv
+output/alerts/*
+!output/alerts/.gitkeep
+output/audit/*
+!output/audit/.gitkeep
+logs/*.log

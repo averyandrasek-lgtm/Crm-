@@ -1,4 +1,0 @@
-crm_record_id,first_name,last_name,email,company,title,linkedin_url
-CRM-1001,Jane,Doe,jane.doe@acme.com,Acme Corp,VP of Sales,https://www.linkedin.com/in/janedoe
-CRM-1002,John,Smith,john.smith@globex.com,Globex Inc,Director of Engineering,https://www.linkedin.com/in/johnsmith
-CRM-1003,Maria,Garcia,maria.garcia@initech.com,Initech,Head of Revenue Operations,https://www.linkedin.com/in/mariagarcia

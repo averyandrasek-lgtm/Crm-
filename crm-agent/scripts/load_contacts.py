@@ -38,8 +38,16 @@ def slugify(value: str) -> str:
     return value.strip("-")
 
 
-def make_contact_id(first_name: str, last_name: str, company: str) -> str:
-    return f"{slugify(first_name)}-{slugify(last_name)}-{slugify(company)}"
+def make_contact_id(first_name: str, last_name: str, company: str, crm_record_id: str) -> str:
+    """Build the firstname-lastname-companyslug slug when all three are
+    present. If any are missing (real for bulk CRM imports where a contact
+    has no name or company on file), fall back to a crm_record_id-suffixed
+    slug so distinct blank/partial contacts never collide on contact_id."""
+    parts = [slugify(p) for p in (first_name, last_name, company) if p and slugify(p)]
+    if first_name and last_name and company:
+        return "-".join(parts)
+    base = "-".join(parts) if parts else "contact"
+    return f"{base}-{slugify(str(crm_record_id))}"
 
 
 def now_iso() -> str:
@@ -93,14 +101,14 @@ def merge_record(existing: dict, incoming: dict, timestamp: str) -> dict:
 def build_new_record(row: dict, contact_id: str, timestamp: str) -> dict:
     return {
         "contact_id": contact_id,
-        "first_name": row["first_name"].strip(),
-        "last_name": row["last_name"].strip(),
+        "first_name": row.get("first_name", "").strip() or None,
+        "last_name": row.get("last_name", "").strip() or None,
         "email": row.get("email") or None,
         "phone": row.get("phone") or None,
         "linkedin_url": row.get("linkedin_url") or None,
-        "company": row["company"].strip(),
+        "company": row.get("company", "").strip() or None,
         "company_domain": None,
-        "title": row["title"].strip(),
+        "title": row.get("title", "").strip() or None,
         "role_category": row.get("role_category") or "other",
         "crm_record_id": row["crm_record_id"].strip(),
         "open_deal_ids": [],
@@ -135,7 +143,10 @@ def main() -> int:
     with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            contact_id = make_contact_id(row["first_name"], row["last_name"], row["company"])
+            contact_id = make_contact_id(
+                row.get("first_name", ""), row.get("last_name", ""), row.get("company", ""),
+                row["crm_record_id"],
+            )
             if contact_id in existing_contacts:
                 record = merge_record(existing_contacts[contact_id], row, timestamp)
                 action = "updated"
