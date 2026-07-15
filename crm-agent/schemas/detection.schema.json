@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crm-agent.local/schemas/detection.schema.json",
+  "title": "Detection",
+  "type": "object",
+  "properties": {
+    "detection_id": { "type": "string", "minLength": 1 },
+    "contact_id": { "type": "string", "minLength": 1 },
+    "detection_type": {
+      "type": "string",
+      "enum": [
+        "job_change",
+        "title_change",
+        "company_close",
+        "email_bounce",
+        "contact_departure",
+        "signature_change"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": { "type": "string" },
+          "url": { "type": ["string", "null"], "format": "uri" },
+          "date": { "type": "string", "format": "date" },
+          "quote": { "type": "string" }
+        },
+        "required": ["source", "date", "quote"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "proposed_changes": {
+      "type": "object",
+      "description": "Map of field name to new value.",
+      "additionalProperties": true
+    },
+    "requires_approval": { "type": "boolean" },
+    "field_risk_category": {
+      "type": "string",
+      "enum": ["low_risk", "medium_risk", "high_risk"]
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "status": {
+      "type": "string",
+      "enum": ["pending_review", "approved", "applied", "rejected", "expired"]
+    }
+  },
+  "required": [
+    "detection_id",
+    "contact_id",
+    "detection_type",
+    "evidence",
+    "confidence",
+    "proposed_changes",
+    "requires_approval",
+    "field_risk_category",
+    "created_at",
+    "status"
+  ],
+  "additionalProperties": false
+}

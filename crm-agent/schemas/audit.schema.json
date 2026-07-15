@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crm-agent.local/schemas/audit.schema.json",
+  "title": "Audit Entry",
+  "type": "object",
+  "properties": {
+    "audit_id": { "type": "string", "minLength": 1 },
+    "contact_id": { "type": "string", "minLength": 1 },
+    "crm_record_id": { "type": "string", "minLength": 1 },
+    "detection_id": { "type": "string", "minLength": 1 },
+    "field": { "type": "string", "minLength": 1 },
+    "old_value": {},
+    "new_value": {},
+    "write_mode": {
+      "type": "string",
+      "enum": ["draft", "live"]
+    },
+    "approved_by": { "type": ["string", "null"] },
+    "crm_write_status": {
+      "type": "string",
+      "enum": ["pending", "success", "failed", "rolled_back"]
+    },
+    "crm_api_response": { "type": ["string", "null"] },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "required": [
+    "audit_id",
+    "contact_id",
+    "crm_record_id",
+    "detection_id",
+    "field",
+    "write_mode",
+    "crm_write_status",
+    "timestamp"
+  ],
+  "additionalProperties": false
+}

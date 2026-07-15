@@ -1,0 +1,20 @@
+write_mode: draft # allowed: draft, live
+
+approval_required:
+  low_risk: false # written automatically with audit log
+  medium_risk: true
+  high_risk: true
+
+detection_thresholds:
+  min_confidence_to_act: high
+  min_evidence_sources: 2
+
+champion:
+  alert_window_hours: 24
+  cadence_steps: 10
+  cadence_days: 50
+
+presend:
+  decay_score_threshold: 0.4
+  days_since_verify_threshold: 90
+  bounced_lookback_days: 180

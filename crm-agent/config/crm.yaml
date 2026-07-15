@@ -1,0 +1,22 @@
+provider: # hubspot | salesforce | pipedrive
+api_via: # mcp | direct
+connector_name: # e.g. "hubspot-mcp", required if api_via=mcp
+
+object_mapping:
+  contact_object: contact
+  company_object: company
+  deal_object: deal
+
+field_mapping:
+  email: # CRM field name
+  phone:
+  job_title:
+  company_name:
+  custom_decay_score: # optional, recommended
+
+write_rules:
+  preserve_history: true
+  never_overwrite_manual_overrides: true
+  never_touch_fields:
+    - lifecycle_stage
+    - lead_source

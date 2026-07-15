@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crm-agent.local/schemas/contact.schema.json",
+  "title": "Contact",
+  "type": "object",
+  "properties": {
+    "contact_id": {
+      "type": "string",
+      "description": "Slug format: firstname-lastname-companyslug, lowercase, hyphenated.",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "first_name": { "type": "string", "minLength": 1 },
+    "last_name": { "type": "string", "minLength": 1 },
+    "email": {
+      "type": ["string", "null"],
+      "format": "email"
+    },
+    "phone": {
+      "type": ["string", "null"]
+    },
+    "linkedin_url": {
+      "type": ["string", "null"],
+      "format": "uri"
+    },
+    "company": { "type": "string", "minLength": 1 },
+    "company_domain": {
+      "type": ["string", "null"],
+      "format": "hostname"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "role_category": {
+      "type": "string",
+      "enum": ["champion", "decision_maker", "user", "influencer", "other"]
+    },
+    "crm_record_id": {
+      "type": "string",
+      "description": "The ID in HubSpot or Salesforce",
+      "minLength": 1
+    },
+    "open_deal_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "last_verified_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "decay_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.0
+    },
+    "job_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "company": { "type": "string" },
+          "title": { "type": "string" },
+          "start_date": { "type": ["string", "null"], "format": "date" },
+          "end_date": { "type": ["string", "null"], "format": "date" },
+          "source_url": { "type": ["string", "null"], "format": "uri" },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          }
+        },
+        "required": ["company", "title"],
+        "additionalProperties": false
+      },
+      "default": []
+    },
+    "bounce_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "format": "date-time" },
+          "type": { "type": "string" },
+          "source": { "type": "string" }
+        },
+        "required": ["date", "type", "source"],
+        "additionalProperties": false
+      },
+      "default": []
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "required": [
+    "contact_id",
+    "first_name",
+    "last_name",
+    "company",
+    "title",
+    "crm_record_id",
+    "created_at",
+    "updated_at"
+  ],
+  "additionalProperties": false
+}
