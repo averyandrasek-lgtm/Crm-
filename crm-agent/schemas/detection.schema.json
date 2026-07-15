@@ -14,7 +14,8 @@
         "company_close",
         "email_bounce",
         "contact_departure",
-        "signature_change"
+        "signature_change",
+        "enrichment"
       ]
     },
     "evidence": {
