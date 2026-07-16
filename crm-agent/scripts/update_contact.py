@@ -7,9 +7,16 @@ state/contacts.jsonl directly.
 
 CLI: contact_id, field, new_value, source_detection_id.
 
-The script loads the contact, confirms the field exists in
-schemas/contact.schema.json, loads the source detection from
-state/detections.jsonl, and confirms the change is allowed:
+A field name ending in ".append" (e.g. "job_history.append") appends to
+an array field instead of overwriting it -- new_value must be a JSON
+object string in that case (e.g. '{"company": "Beacon", "title": "VP
+Sales", "end_date": "2026-05"}'), matching the field's item schema
+(job_history requires at least company and title).
+
+The script loads the contact, confirms the field (or, for an append,
+the underlying array field) exists in schemas/contact.schema.json, loads
+the source detection from state/detections.jsonl, and confirms the
+change is allowed:
 
 - The detection must belong to the same contact_id and must propose this
   exact field/value.
@@ -104,6 +111,17 @@ class UpdateRejected(Exception):
     pass
 
 
+APPEND_SUFFIX = ".append"
+
+
+def is_append_field(field: str) -> bool:
+    return field.endswith(APPEND_SUFFIX)
+
+
+def append_base_field(field: str) -> str:
+    return field[: -len(APPEND_SUFFIX)]
+
+
 def find_detection(detections: list, detection_id: str) -> dict:
     for detection in detections:
         if detection.get("detection_id") == detection_id:
@@ -119,7 +137,16 @@ def validate_change_allowed(
     contact_schema: dict,
     pipeline_config: dict,
 ) -> None:
-    if field not in contact_schema.get("properties", {}):
+    if is_append_field(field):
+        base_field = append_base_field(field)
+        base_schema = contact_schema.get("properties", {}).get(base_field)
+        if base_schema is None:
+            raise UpdateRejected(f"field '{base_field}' is not defined in contact.schema.json")
+        if base_schema.get("type") != "array":
+            raise UpdateRejected(f"field '{base_field}' is not an array field; '.append' doesn't apply")
+        if not isinstance(new_value, dict):
+            raise UpdateRejected(f"'{field}' requires a JSON object new_value, got {type(new_value).__name__}")
+    elif field not in contact_schema.get("properties", {}):
         raise UpdateRejected(f"field '{field}' is not defined in contact.schema.json")
 
     if detection.get("contact_id") != contact["contact_id"]:
@@ -173,17 +200,31 @@ def main() -> int:
 
     contact = contacts[contact_index]
 
+    if is_append_field(args.field):
+        try:
+            new_value = json.loads(args.new_value)
+        except json.JSONDecodeError as exc:
+            print(f"REJECTED: '{args.field}' new_value must be a JSON object: {exc}", file=sys.stderr)
+            return 1
+    else:
+        new_value = args.new_value
+
     try:
         detection = find_detection(detections, args.source_detection_id)
         validate_change_allowed(
-            contact, args.field, args.new_value, detection, contact_schema, pipeline_config
+            contact, args.field, new_value, detection, contact_schema, pipeline_config
         )
     except UpdateRejected as exc:
         print(f"REJECTED: {exc}", file=sys.stderr)
         return 1
 
-    old_value = contact.get(args.field)
-    contact[args.field] = args.new_value
+    if is_append_field(args.field):
+        base_field = append_base_field(args.field)
+        old_value = list(contact.get(base_field, []))
+        contact.setdefault(base_field, []).append(new_value)
+    else:
+        old_value = contact.get(args.field)
+        contact[args.field] = new_value
     contact["updated_at"] = now_iso()
 
     decay_message = ""
