@@ -14,7 +14,7 @@ Check the following sources in roughly this order, stopping when you have enough
 
 1. **LinkedIn current position** (via Apollo or Clay MCP if available, otherwise via web search of the `linkedin_url`): does the current company or title differ from what's in state?
 2. **The contact's recent LinkedIn posts** (last 14 days): any phrase suggesting a job move, a promotion, or a departure? Examples: "thrilled to share", "starting a new role", "moving on from", "last week at", "new chapter".
-3. **Gmail** (via Gmail MCP if available): in the last 14 days, has any message from or to this contact's email bounced, hit an autoresponder mentioning a permanent departure, or come with an updated email signature showing a different company or title?
+3. **Outlook** (via the Microsoft 365 MCP's `outlook_email_search`, filtered by the contact's email as sender/recipient and a 14-day date range): in the last 14 days, has any message from or to this contact's email bounced, hit an autoresponder mentioning a permanent departure, or come with an updated email signature showing a different company or title?
 4. **The contact's previous company's team or about page**: is the contact still listed?
 5. **Recent press or funding news** mentioning this contact: any new title or company referenced?
 
@@ -35,7 +35,7 @@ Output a single JSON object:
   "sources_checked": [
     {"source": "linkedin_profile", "checked_at": "YYYY-MM-DD", "status": "ok | unavailable | not_found"},
     {"source": "linkedin_activity", "checked_at": "YYYY-MM-DD", "status": "ok | unavailable | not_found"},
-    {"source": "gmail_bounces", "checked_at": "YYYY-MM-DD", "status": "ok | unavailable | not_found"},
+    {"source": "outlook_bounces", "checked_at": "YYYY-MM-DD", "status": "ok | unavailable | not_found"},
     {"source": "previous_company_page", "checked_at": "YYYY-MM-DD", "status": "ok | unavailable | not_found"},
     {"source": "press_news", "checked_at": "YYYY-MM-DD", "status": "ok | unavailable | not_found"}
   ],
@@ -46,5 +46,5 @@ Output a single JSON object:
 ## Rules
 - Be generous on the "investigate" side for borderline signals. The validator will filter false positives downstream, and the cost of one extra investigate is small compared to the cost of missing a real move.
 - Be strict only when there is genuinely zero signal across every source you could check.
-- Never claim to have checked a source you couldn't reach. If the Gmail connector isn't available, record status "unavailable" for `gmail_bounces`; do not pretend.
+- Never claim to have checked a source you couldn't reach. If the Microsoft 365/Outlook connector isn't available, record status "unavailable" for `outlook_bounces`; do not pretend.
 - Update the contact's `last_verified_at` to today if `scanner_verdict` is "skip" AND at least three sources returned "ok" with no signal. Per CLAUDE.md section 3, this update goes through `scripts/update_contact.py` like any other state mutation — the scanner itself never writes to `state/contacts.jsonl` directly.

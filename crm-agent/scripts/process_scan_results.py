@@ -40,7 +40,7 @@ UPDATE_SCRIPT = BASE_DIR / "scripts" / "update_contact.py"
 SOURCE_TO_CONNECTOR = {
     "linkedin_profile": "Apollo or Clay MCP (falls back to web search)",
     "linkedin_activity": "Apollo or Clay MCP (falls back to web search)",
-    "gmail_bounces": "Gmail MCP",
+    "outlook_bounces": "Microsoft 365 MCP (outlook_email_search)",
     "previous_company_page": "web search (no dedicated connector)",
     "press_news": "web search (no dedicated connector)",
 }
