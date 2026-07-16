@@ -12,6 +12,8 @@ state/queue/*
 !state/queue/.gitkeep
 logs/*.log
 output/calibration-*.md
+output/approvals/*
+!output/approvals/.gitkeep
 
 # Python
 __pycache__/
