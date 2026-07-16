@@ -11,6 +11,7 @@ output/scanner/*
 state/queue/*
 !state/queue/.gitkeep
 logs/*.log
+output/calibration-*.md
 
 # Python
 __pycache__/
