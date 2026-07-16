@@ -18,10 +18,14 @@
     "approved_by": { "type": ["string", "null"] },
     "crm_write_status": {
       "type": "string",
-      "enum": ["pending", "success", "failed", "rolled_back"]
+      "enum": ["pending", "success", "success-draft", "failed", "rolled_back"]
     },
     "crm_api_response": { "type": ["string", "null"] },
-    "timestamp": { "type": "string", "format": "date-time" }
+    "timestamp": { "type": "string", "format": "date-time" },
+    "change_order_id": {
+      "type": ["string", "null"],
+      "description": "Links this audit entry back to the change_order that produced it, if any."
+    }
   },
   "required": [
     "audit_id",

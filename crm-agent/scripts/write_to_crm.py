@@ -32,10 +32,37 @@ Run as:
 
   python3 scripts/write_to_crm.py mark-result <audit_id> --status success --response '...'
   python3 scripts/write_to_crm.py mark-result <audit_id> --status failed --response '...'
+
+Whole change_orders (from scripts/refresh_planner output, state/change_orders.jsonl)
+are executed with:
+
+  python3 scripts/write_to_crm.py apply-change-order --change-order-id <id> --approved-by <name|"auto">
+  python3 scripts/write_to_crm.py finish-change-order --change-order-id <id>
+
+apply-change-order refuses to run unless the change_order's underlying
+detection status is already "approved" -- a human_approval-lane
+change_order whose detection is still "pending_review" has not actually
+been approved by anyone yet, and applying it anyway would bypass the
+whole point of the approval gate.
+
+For each field in a change_order: fields with no config/crm.yaml
+field_mapping entry (e.g. job_history, which HubSpot has no native
+concept of) are local-state-only and resolve immediately as "success"
+without any CRM call. Mapped fields follow the same draft/live+mcp/
+live+direct rules as `push`. If every field resolves immediately (draft
+mode, or all fields are unmapped, or there are zero changes to make),
+apply-change-order finalizes in one step: it applies the same changes to
+state/contacts.jsonl via update_contact.py, bumps last_verified_at and
+recomputes decay_score, and sets both the detection and the change_order
+to "applied". If any field is left "pending" awaiting an agent-performed
+MCP call, run finish-change-order after resolving those audit entries
+with mark-result -- it finalizes the same way, or rolls back the fields
+that already succeeded if any field failed.
 """
 
 import argparse
 import json
+import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -50,8 +77,11 @@ OUTPUT_DIR = BASE_DIR / "output"
 
 CONTACTS_PATH = STATE_DIR / "contacts.jsonl"
 AUDIT_PATH = STATE_DIR / "audit.jsonl"
+DETECTIONS_PATH = STATE_DIR / "detections.jsonl"
+CHANGE_ORDERS_PATH = STATE_DIR / "change_orders.jsonl"
 PIPELINE_CONFIG_PATH = CONFIG_DIR / "pipeline.yaml"
 CRM_CONFIG_PATH = CONFIG_DIR / "crm.yaml"
+UPDATE_SCRIPT = BASE_DIR / "scripts" / "update_contact.py"
 
 MCP_TOOL_BY_PROVIDER = {
     "hubspot": "mcp__HubSpot__manage_crm_objects",
@@ -322,6 +352,235 @@ def _update_audit_entry(updated_entry: dict) -> None:
     write_jsonl(AUDIT_PATH, entries)
 
 
+def find_by_id(records: list, id_field: str, id_value: str):
+    for r in records:
+        if r.get(id_field) == id_value:
+            return r
+    return None
+
+
+def crm_field_for(field: str, crm_config: dict):
+    """None means this field has no CRM counterpart (e.g. job_history) --
+    it's local-state-only and never gets pushed to the CRM."""
+    crm_key = CONTACT_FIELD_TO_CRM_KEY.get(field)
+    if crm_key is None:
+        return None
+    return (crm_config.get("field_mapping") or {}).get(crm_key) or None
+
+
+def cmd_apply_change_order(args) -> int:
+    change_orders = load_jsonl(CHANGE_ORDERS_PATH)
+    detections = load_jsonl(DETECTIONS_PATH)
+    contacts = load_jsonl(CONTACTS_PATH)
+    pipeline_config = load_yaml(PIPELINE_CONFIG_PATH)
+    crm_config = load_yaml(CRM_CONFIG_PATH)
+    write_mode = pipeline_config.get("write_mode", "draft")
+    api_via = crm_config.get("api_via")
+
+    co_index = next((i for i, co in enumerate(change_orders) if co.get("change_order_id") == args.change_order_id), None)
+    if co_index is None:
+        print(f"ERROR: change_order_id '{args.change_order_id}' not found", file=sys.stderr)
+        return 1
+    change_order = change_orders[co_index]
+
+    if change_order.get("status") not in (None, "planned"):
+        print(f"ERROR: change_order '{args.change_order_id}' already has status '{change_order.get('status')}'", file=sys.stderr)
+        return 1
+
+    detection = find_by_id(detections, "detection_id", change_order["detection_id"])
+    if detection is None:
+        print(f"ERROR: detection_id '{change_order['detection_id']}' not found", file=sys.stderr)
+        return 1
+
+    if detection["status"] != "approved":
+        print(
+            f"REJECTED: detection '{detection['detection_id']}' has status "
+            f"'{detection['status']}', not 'approved' -- this change_order has not "
+            f"actually been approved by a human yet. Approve the detection first.",
+            file=sys.stderr,
+        )
+        return 1
+
+    contact_index = find_contact_index(contacts, change_order["contact_id"])
+    if contact_index is None:
+        print(f"ERROR: contact_id '{change_order['contact_id']}' not found", file=sys.stderr)
+        return 1
+    contact = contacts[contact_index]
+
+    pending_mcp = []
+    for change in change_order["changes"]:
+        field = change["field"]
+        new_value = change["new_value"]
+        crm_field = crm_field_for(field, crm_config)
+
+        audit_entry = {
+            "audit_id": f"audit-{uuid.uuid4().hex[:12]}",
+            "contact_id": change_order["contact_id"],
+            "crm_record_id": change_order["crm_record_id"],
+            "detection_id": change_order["detection_id"],
+            "field": field,
+            "old_value": change.get("old_value"),
+            "new_value": new_value,
+            "write_mode": write_mode,
+            "approved_by": args.approved_by,
+            "crm_write_status": "pending",
+            "crm_api_response": None,
+            "timestamp": now_iso(),
+            "change_order_id": change_order["change_order_id"],
+        }
+        append_jsonl(AUDIT_PATH, audit_entry)
+
+        if crm_field is None:
+            audit_entry["crm_write_status"] = "success"
+            audit_entry["crm_api_response"] = f"no CRM field mapping for '{field}'; local-only, not synced to CRM"
+            _update_audit_entry(audit_entry)
+            print(f"  {field}: local-only (no CRM mapping) -- resolved")
+            continue
+
+        if write_mode == "draft":
+            draft_path = write_draft_change_file(change_order["contact_id"], field, change.get("old_value"), new_value, change_order["detection_id"])
+            audit_entry["crm_write_status"] = "success-draft"
+            _update_audit_entry(audit_entry)
+            print(f"  {field}: DRAFT wrote {draft_path}")
+            continue
+
+        if api_via == "mcp":
+            print(f"  {field}: STAGED, needs agent MCP action")
+            print_mcp_action_required(audit_entry, crm_config, contact, field, new_value)
+            pending_mcp.append(audit_entry["audit_id"])
+            continue
+
+        # api_via == "direct"
+        try:
+            response = call_crm_api(crm_config, contact, field, new_value)
+            audit_entry["crm_write_status"] = "success"
+            audit_entry["crm_api_response"] = response
+        except Exception as exc:  # noqa: BLE001
+            audit_entry["crm_write_status"] = "failed"
+            audit_entry["crm_api_response"] = str(exc)
+        _update_audit_entry(audit_entry)
+
+    if pending_mcp:
+        print(
+            f"\n{len(pending_mcp)} field(s) awaiting agent-performed MCP action. "
+            f"After resolving each with mark-result, run:\n"
+            f"  python3 scripts/write_to_crm.py finish-change-order --change-order-id {change_order['change_order_id']}"
+        )
+        change_order["status"] = "in_progress"
+        change_orders[co_index] = change_order
+        write_jsonl(CHANGE_ORDERS_PATH, change_orders)
+        return 0
+
+    return _finalize_or_rollback(change_order, co_index, change_orders, detection, contacts, contact_index)
+
+
+def cmd_finish_change_order(args) -> int:
+    change_orders = load_jsonl(CHANGE_ORDERS_PATH)
+    detections = load_jsonl(DETECTIONS_PATH)
+    contacts = load_jsonl(CONTACTS_PATH)
+
+    co_index = next((i for i, co in enumerate(change_orders) if co.get("change_order_id") == args.change_order_id), None)
+    if co_index is None:
+        print(f"ERROR: change_order_id '{args.change_order_id}' not found", file=sys.stderr)
+        return 1
+    change_order = change_orders[co_index]
+
+    audit = [a for a in load_jsonl(AUDIT_PATH) if a.get("change_order_id") == change_order["change_order_id"]]
+    pending = [a for a in audit if a["crm_write_status"] == "pending"]
+    if pending:
+        print(f"ERROR: {len(pending)} audit entr(ies) still pending for this change_order -- resolve with mark-result first", file=sys.stderr)
+        return 1
+
+    detection = find_by_id(detections, "detection_id", change_order["detection_id"])
+    contact_index = find_contact_index(contacts, change_order["contact_id"])
+
+    return _finalize_or_rollback(change_order, co_index, change_orders, detection, contacts, contact_index, audit=audit)
+
+
+def _finalize_or_rollback(change_order, co_index, change_orders, detection, contacts, contact_index, audit=None):
+    if audit is None:
+        audit = [a for a in load_jsonl(AUDIT_PATH) if a.get("change_order_id") == change_order["change_order_id"]]
+
+    failed = [a for a in audit if a["crm_write_status"] == "failed"]
+
+    if failed:
+        succeeded = [a for a in audit if a["crm_write_status"] in ("success", "success-draft")]
+        for a in succeeded:
+            a["crm_write_status"] = "rolled_back"
+            _update_audit_entry(a)
+        status = "full-rolled-back" if not succeeded else "partial-rolled-back"
+        change_order["status"] = status
+        change_orders[co_index] = change_order
+        write_jsonl(CHANGE_ORDERS_PATH, change_orders)
+        print(f"{change_order['contact_id']} | 0 fields written | {status}")
+        print(
+            f"NOTE: {len(failed)} field(s) failed; any already-successful CRM writes in "
+            f"this change_order need to be reverted in HubSpot using each change's "
+            f"old_value. rollback_plan: {change_order['rollback_plan']}",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Every field resolved successfully (including the zero-changes case). Apply
+    # to local state via update_contact.py -- the only sanctioned mutation path.
+    for change in change_order["changes"]:
+        field = change["field"]
+        if change["operation"] == "append":
+            cli_field = f"{field}.append"
+            value_str = json.dumps(change["new_value"])
+        else:
+            cli_field = field
+            value_str = change["new_value"]
+        result = subprocess.run(
+            [sys.executable, str(UPDATE_SCRIPT), change_order["contact_id"], cli_field, value_str, change_order["detection_id"]],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"WARNING: update_contact.py failed for {cli_field}: {result.stderr.strip()}", file=sys.stderr)
+
+    # Bump last_verified_at via a fresh, self-contained verification detection --
+    # the change_order's own detection doesn't propose last_verified_at, so it
+    # can't be reused as the source_detection_id for that specific field.
+    verify_detection = {
+        "detection_id": f"det-scan-verify-{uuid.uuid4().hex[:10]}",
+        "contact_id": change_order["contact_id"],
+        "detection_type": "enrichment",
+        "evidence": [{
+            "source": "write_to_crm", "url": None, "date": today_str(),
+            "quote": f"change_order {change_order['change_order_id']} applied successfully",
+        }],
+        "confidence": "high",
+        "proposed_changes": {"last_verified_at": now_iso()},
+        "requires_approval": False,
+        "field_risk_category": "low_risk",
+        "created_at": now_iso(),
+        "status": "approved",
+    }
+    append_jsonl(DETECTIONS_PATH, verify_detection)
+    subprocess.run(
+        [sys.executable, str(UPDATE_SCRIPT), change_order["contact_id"], "last_verified_at",
+         verify_detection["proposed_changes"]["last_verified_at"], verify_detection["detection_id"]],
+        capture_output=True, text=True,
+    )
+
+    # Reload fresh (verify_detection is now on disk) before flipping the
+    # original detection's status, to avoid clobbering the just-appended entry.
+    detections = load_jsonl(DETECTIONS_PATH)
+    for i, d in enumerate(detections):
+        if d["detection_id"] == detection["detection_id"]:
+            d["status"] = "applied"
+            detections[i] = d
+    write_jsonl(DETECTIONS_PATH, detections)
+
+    change_order["status"] = "applied"
+    change_orders[co_index] = change_order
+    write_jsonl(CHANGE_ORDERS_PATH, change_orders)
+
+    n_fields = len(change_order["changes"])
+    print(f"{change_order['contact_id']} | {n_fields} fields written | success")
+    return 0
+
+
 def parse_change(raw: str) -> tuple:
     if "=" not in raw:
         raise argparse.ArgumentTypeError(f"--change must be field=new_value, got '{raw}'")
@@ -351,6 +610,15 @@ def main() -> int:
     mark_parser.add_argument("--status", choices=["success", "failed"], required=True)
     mark_parser.add_argument("--response", required=True, help="CRM API response summary or error message")
     mark_parser.set_defaults(func=cmd_mark_result)
+
+    apply_parser = subparsers.add_parser("apply-change-order", help="Execute a refresh-planner change_order")
+    apply_parser.add_argument("--change-order-id", dest="change_order_id", required=True)
+    apply_parser.add_argument("--approved-by", dest="approved_by", required=True, help='human name, or "auto" for auto_apply lane')
+    apply_parser.set_defaults(func=cmd_apply_change_order)
+
+    finish_parser = subparsers.add_parser("finish-change-order", help="Finalize a change_order after agent-performed MCP calls are resolved")
+    finish_parser.add_argument("--change-order-id", dest="change_order_id", required=True)
+    finish_parser.set_defaults(func=cmd_finish_change_order)
 
     args = parser.parse_args()
     return args.func(args)

@@ -35,6 +35,11 @@
     "notes": {
       "type": ["string", "null"],
       "description": "Which rule/field caused a blocked_by_rule or blocked_by_override lane, or any other planning caveat."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["planned", "in_progress", "applied", "partial-rolled-back", "full-rolled-back"],
+      "description": "planned = not yet executed (the default once a change_order is written); set by scripts/write_to_crm.py as it executes."
     }
   },
   "required": [
