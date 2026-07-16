@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Validate the integrity of state/*.jsonl.
 
-Loads state/contacts.jsonl, state/detections.jsonl, and state/audit.jsonl,
-validates every line against its JSON Schema, and checks referential
-integrity across the three files:
+Loads state/contacts.jsonl, state/detections.jsonl, state/audit.jsonl, and
+state/change_orders.jsonl, validates every line against its JSON Schema,
+and checks referential integrity across the files:
 
-- Every detection.contact_id and audit.contact_id must exist in
-  contacts.jsonl.
+- Every detection.contact_id, audit.contact_id, and change_order.contact_id
+  must exist in contacts.jsonl.
 - Every audit entry must have a matching detection_id whose status is
   "approved" or "applied".
+- Every change_order.detection_id must exist in detections.jsonl.
 
 Exits 0 if all checks pass, 1 if any check fails (errors are printed to
 stderr).
@@ -29,6 +30,7 @@ SCHEMA_DIR = BASE_DIR / "schemas"
 CONTACTS_PATH = STATE_DIR / "contacts.jsonl"
 DETECTIONS_PATH = STATE_DIR / "detections.jsonl"
 AUDIT_PATH = STATE_DIR / "audit.jsonl"
+CHANGE_ORDERS_PATH = STATE_DIR / "change_orders.jsonl"
 
 
 def load_jsonl(path: Path) -> list:
@@ -67,6 +69,7 @@ def main() -> int:
         contacts = load_jsonl(CONTACTS_PATH)
         detections = load_jsonl(DETECTIONS_PATH)
         audit = load_jsonl(AUDIT_PATH)
+        change_orders = load_jsonl(CHANGE_ORDERS_PATH)
     except ValueError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
@@ -74,6 +77,7 @@ def main() -> int:
     validate_records(contacts, load_schema("contact.schema.json"), "contacts.jsonl", errors)
     validate_records(detections, load_schema("detection.schema.json"), "detections.jsonl", errors)
     validate_records(audit, load_schema("audit.schema.json"), "audit.jsonl", errors)
+    validate_records(change_orders, load_schema("change_order.schema.json"), "change_orders.jsonl", errors)
 
     contact_ids = {c.get("contact_id") for c in contacts if "contact_id" in c}
     detection_by_id = {d.get("detection_id"): d for d in detections if "detection_id" in d}
@@ -102,6 +106,19 @@ def main() -> int:
             errors.append(
                 f"audit.jsonl:{i}: matching detection '{det_id}' has status "
                 f"'{detection.get('status')}', expected 'approved' or 'applied'"
+            )
+
+    for i, change_order in enumerate(change_orders, start=1):
+        cid = change_order.get("contact_id")
+        if cid not in contact_ids:
+            errors.append(
+                f"change_orders.jsonl:{i}: contact_id '{cid}' not found in contacts.jsonl"
+            )
+
+        det_id = change_order.get("detection_id")
+        if det_id not in detection_by_id:
+            errors.append(
+                f"change_orders.jsonl:{i}: detection_id '{det_id}' has no matching detection"
             )
 
     if errors:

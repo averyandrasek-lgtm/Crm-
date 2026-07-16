@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crm-agent.local/schemas/change_order.schema.json",
+  "title": "Change Order",
+  "type": "object",
+  "properties": {
+    "change_order_id": { "type": "string", "minLength": 1 },
+    "detection_id": { "type": "string", "minLength": 1 },
+    "contact_id": { "type": "string", "minLength": 1 },
+    "crm_record_id": { "type": "string", "minLength": 1 },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": { "type": "string" },
+          "old_value": {},
+          "new_value": {},
+          "operation": {
+            "type": "string",
+            "enum": ["set", "append", "merge"]
+          }
+        },
+        "required": ["field", "operation"],
+        "additionalProperties": false
+      }
+    },
+    "lane": {
+      "type": "string",
+      "enum": ["auto_apply", "human_approval", "blocked_by_rule", "blocked_by_override"]
+    },
+    "approval_summary": { "type": "string" },
+    "rollback_plan": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Which rule/field caused a blocked_by_rule or blocked_by_override lane, or any other planning caveat."
+    }
+  },
+  "required": [
+    "change_order_id",
+    "detection_id",
+    "contact_id",
+    "crm_record_id",
+    "changes",
+    "lane",
+    "approval_summary",
+    "rollback_plan",
+    "created_at"
+  ],
+  "additionalProperties": false
+}
