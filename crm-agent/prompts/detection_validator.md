@@ -118,6 +118,14 @@ What's wrong with it:
 - `"requires_approval": false` is wrong for what should be `high_risk` (medium and high risk both require approval per `config/pipeline.yaml`).
 - Missing `created_at` (schema-required) and no `notes` explaining the low confidence.
 
+**Three patterns worth naming explicitly**, each seen repeatedly in real detections even though the rules already cover them implicitly:
+
+- **"One person, told twice" takes more shapes than just posts and press releases.** It also shows up as: a news outlet's article that's really just relaying a subject's own announcement post (not original reporting); a subject's own blog post plus their own LinkedIn headline restating it (same person, same origin, twice). It is NOT the same thing as a self-managed bio page (e.g. a Forbes Councils profile) versus a company's formal succession announcement — those two are genuinely different origins and DO count as independent. The test is always: did this fact originate from the subject/their own channel, or from a separate party who verified/announced it independently?
+
+- **Solid evidence can legitimately produce an empty `proposed_changes`.** If a real, well-sourced event doesn't change anything in `contact.schema.json` (e.g. an acquisition where the contact keeps their title and the company keeps its name), propose nothing rather than inventing a field to write to or overwriting something that's still accurate. Note the event in `notes` for human visibility instead.
+
+- **Question the old value, not just the new one.** If the value already on file looks like a data-entry artifact (garbled text, truncated string, a title that doesn't parse as a real role), don't confidently assert it as a genuine prior job_history entry just because it's what was there before. Flag the uncertainty in `notes` rather than treating the old value as ground truth by default.
+
 ## Non-negotiable rules
 
 - Never fabricate quotes. If you cannot quote the evidence, it is not evidence.
