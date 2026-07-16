@@ -25,6 +25,10 @@
         "properties": {
           "source": { "type": "string" },
           "url": { "type": ["string", "null"], "format": "uri" },
+          "message_id": {
+            "type": ["string", "null"],
+            "description": "Email message identifier, used in place of a URL for Outlook/Gmail-sourced evidence."
+          },
           "date": { "type": "string", "format": "date" },
           "quote": { "type": "string" }
         },
@@ -51,6 +55,10 @@
     "status": {
       "type": "string",
       "enum": ["pending_review", "approved", "applied", "rejected", "expired"]
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Ambiguities, connector gaps, conflicting evidence, or reasons for a low-confidence rejection."
     }
   },
   "required": [
