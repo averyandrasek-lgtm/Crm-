@@ -21,6 +21,8 @@ Check the following sources in roughly this order, stopping when you have enough
 For each source you actually checked, record the date of the most recent artifact you saw (the post date, the bounce date, the page crawl date). If a source was unavailable (no connector, login wall, 404), record that explicitly.
 
 ## Output
+Write the result to `output/scanner/[today]/[contact_id].json` (e.g. `output/scanner/2026-07-16/assaf-rappaport-wiz.json`), where `[today]` is today's date in `YYYY-MM-DD` form. This is the handoff point: `scripts/process_scan_results.py` reads every file in that day's directory and applies the `skip`/`investigate` rules below.
+
 Output a single JSON object:
 
 ```json

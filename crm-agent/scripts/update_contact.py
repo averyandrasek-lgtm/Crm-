@@ -22,6 +22,13 @@ On success the contact record is updated, updated_at is bumped, the
 result is re-validated against the schema, and the full contacts.jsonl is
 rewritten.
 
+Updating last_verified_at has a coupled side effect: decay_score is
+recomputed in the same call (see recompute_decay_score). A contact only
+gets last_verified_at bumped after a clean scan (per
+prompts/candidate_scanner.md: scanner_verdict "skip" with at least three
+sources returning "ok"), so each such verification ticks decay_score
+toward 0 rather than requiring a separate CLI call.
+
 Run as:
   python3 scripts/update_contact.py <contact_id> <field> <new_value> <source_detection_id>
 """
@@ -48,6 +55,21 @@ PIPELINE_CONFIG_PATH = CONFIG_DIR / "pipeline.yaml"
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+DECAY_VERIFIED_FACTOR = 0.5  # each clean verification halves the remaining decay_score
+DECAY_SNAP_TO_ZERO_BELOW = 0.01  # avoid an infinite tail of tiny nonzero scores
+
+
+def recompute_decay_score(old_decay_score: float) -> float:
+    """A verified-clean scan (scanner_verdict=skip, >=3 sources ok) ticks
+    decay_score toward 0. Exponential decay rather than a flat reset, so a
+    contact with a lot of accumulated staleness needs a couple of clean
+    scans in a row to fully clear, not just one."""
+    new_score = round((old_decay_score or 0.0) * DECAY_VERIFIED_FACTOR, 4)
+    if new_score < DECAY_SNAP_TO_ZERO_BELOW:
+        new_score = 0.0
+    return new_score
 
 
 def load_jsonl(path: Path) -> list:
@@ -164,6 +186,13 @@ def main() -> int:
     contact[args.field] = args.new_value
     contact["updated_at"] = now_iso()
 
+    decay_message = ""
+    if args.field == "last_verified_at":
+        old_decay_score = contact.get("decay_score", 0.0)
+        new_decay_score = recompute_decay_score(old_decay_score)
+        contact["decay_score"] = new_decay_score
+        decay_message = f"; decay_score {old_decay_score} -> {new_decay_score}"
+
     try:
         jsonschema.validate(instance=contact, schema=contact_schema)
     except jsonschema.ValidationError as exc:
@@ -175,7 +204,7 @@ def main() -> int:
 
     print(
         f"OK: {args.contact_id}.{args.field} '{old_value}' -> '{args.new_value}' "
-        f"(detection {args.source_detection_id})"
+        f"(detection {args.source_detection_id}){decay_message}"
     )
     return 0
 

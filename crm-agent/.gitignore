@@ -6,4 +6,12 @@ output/alerts/*
 !output/alerts/.gitkeep
 output/audit/*
 !output/audit/.gitkeep
+output/scanner/*
+!output/scanner/.gitkeep
+state/queue/*
+!state/queue/.gitkeep
 logs/*.log
+
+# Python
+__pycache__/
+*.pyc
